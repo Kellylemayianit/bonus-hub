@@ -1,0 +1,14 @@
+{
+  "name": "bonas-hub",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:local": "wrangler d1 migrations apply bonas-hub --local",
+    "db:remote": "wrangler d1 migrations apply bonas-hub --remote",
+    "test": "node --test test/*.test.js"
+  },
+  "devDependencies": { "wrangler": "^3.90.0" }
+}
