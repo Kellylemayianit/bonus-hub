@@ -1,6 +1,7 @@
-import { hashPassword, verifyPassword, createSession, sessionCookie, createToken, verifyTurnstile, currentUser } from '../lib/auth.js';
-import { page, redirect, form, getBusiness, homeFor, queueEmail } from '../lib/http.js';
-import { registerPage, loginPage, checkEmailPage } from '../templates/auth.js';
+import { hashPassword, verifyPassword, createSession, sessionCookie, verifyTurnstile, currentUser } from '../lib/auth.js';
+import { page, redirect, form, getBusiness, homeFor } from '../lib/http.js';
+import { issueOtp, liveOtp, checkOtp } from '../lib/otp.js';
+import { registerPage, loginPage, verifyPage } from '../templates/auth.js';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -19,27 +20,30 @@ export const authRoutes = [
     const { meta } = await env.DB.prepare('INSERT INTO users (email,password_hash,is_admin) VALUES (?,?,?)').bind(email, await hashPassword(f.password), isAdmin).run();
     const uid = meta.last_row_id;
     if (!isAdmin) await env.DB.prepare('INSERT INTO businesses (owner_id) VALUES (?)').bind(uid).run();
-    const token = await createToken(env, uid, 'verify_email');
-    const link = `${env.APP_URL}/verify?token=${token}`;
-    await queueEmail(env, email, 'Verify your Bonas Hub email', `Welcome to Bonas Hub. Verify your email to continue:\n\n${link}`).run();
-    if (!env.RESEND_API_KEY) console.log('[dev] verify link:', link);
-    return redirect('/check-email', { 'set-cookie': sessionCookie(await createSession(env, uid)) });
+    return redirect('/verify', { 'set-cookie': sessionCookie(await createSession(env, uid)) });
   }],
-  ['GET', '/check-email', async (req, env) => {
+  ['GET', '/verify', async (req, env) => {
     const user = await currentUser(env, req);
     if (!user) return redirect('/login');
     if (user.email_verified) return redirect(homeFor(user, await getBusiness(env, user.id)));
-    return page(checkEmailPage(user.email));
+    const otp = (await liveOtp(env, user.id)) || (await issueOtp(env, user.id));
+    return page(verifyPage({ user, otp }));
   }],
-  ['GET', '/verify', async (req, env) => {
-    const token = new URL(req.url).searchParams.get('token');
-    const t = await env.DB.prepare("SELECT user_id FROM tokens WHERE token=? AND purpose='verify_email' AND expires_at>?").bind(token, new Date().toISOString()).first();
-    if (!t) return page(loginPage({ error: 'That verification link is invalid or has expired.' }), 400);
-    await env.DB.batch([
-      env.DB.prepare('UPDATE users SET email_verified=1 WHERE id=?').bind(t.user_id),
-      env.DB.prepare('DELETE FROM tokens WHERE token=?').bind(token),
-    ]);
-    return redirect('/onboarding/role');
+  ['POST', '/verify', async (req, env) => {
+    const user = await currentUser(env, req);
+    if (!user) return redirect('/login');
+    const f = await form(req);
+    const res = await checkOtp(env, user.id, f.code);
+    if (res === 'ok') return redirect('/onboarding/role');
+    const error = { expired: 'That code expired. Get a new one.', wrong: 'Wrong code. Try again.', locked: 'Too many attempts. Get a new code.' }[res];
+    const otp = await liveOtp(env, user.id);
+    return page(verifyPage({ user, otp, error }), 400);
+  }],
+  ['POST', '/verify/new', async (req, env) => {
+    const user = await currentUser(env, req);
+    if (!user) return redirect('/login');
+    await issueOtp(env, user.id);
+    return redirect('/verify');
   }],
   ['GET', '/login', async (req, env) => page(loginPage())],
   ['POST', '/login', async (req, env) => {

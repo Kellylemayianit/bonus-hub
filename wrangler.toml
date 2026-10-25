@@ -12,14 +12,10 @@ binding = "DB"
 database_name = "bonas-hub"
 database_id = "REPLACE_AFTER_wrangler_d1_create"
 
-# Cron drains email_outbox (step 7 wires Resend)
-[triggers]
-crons = ["*/5 * * * *"]
-
-# Secrets (wrangler secret put ...): TURNSTILE_SECRET, RESEND_API_KEY,
+# Secrets (wrangler secret put ...): TURNSTILE_SECRET,
 # SUPABASE_URL, SUPABASE_SERVICE_KEY, CLOUDINARY_API_SECRET
 [vars]
-APP_URL = "http://localhost:8787"
+APP_URL = "https://bonas-hub.ligospace-ke.workers.dev"
 SUPABASE_BUCKET = "verification-docs"
 # First admin: set ADMIN_EMAILS (comma list). That email becomes admin when it registers.
 # ADMIN_EMAILS = "you@example.com"

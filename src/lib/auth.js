@@ -32,11 +32,6 @@ export async function currentUser(env, request) {
     `SELECT u.id, u.email, u.email_verified, u.is_admin FROM sessions s JOIN users u ON u.id = s.user_id
      WHERE s.id = ? AND s.expires_at > ?`).bind(sid, new Date().toISOString()).first();
 }
-export async function createToken(env, userId, purpose, ttlMs = 864e5) {
-  const token = rand(24);
-  await env.DB.prepare('INSERT INTO tokens (token,user_id,purpose,expires_at) VALUES (?,?,?,?)').bind(token, userId, purpose, iso(ttlMs)).run();
-  return token;
-}
 export async function verifyTurnstile(env, request, token) {
   if (!env.TURNSTILE_SECRET) return true; // dev: skipped when no secret is configured
   const r = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {

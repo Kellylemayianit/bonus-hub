@@ -32,18 +32,5 @@ export default {
     if (!hit) return env.ASSETS ? env.ASSETS.fetch(request) : new Response('Not found', { status: 404 });
     try { return await hit[0](request, env, ctx, hit[1]); }
     catch (e) { console.error(e); return new Response('Something went wrong.', { status: 500 }); }
-  },
-
-  // Drains email_outbox. Step 7 hardens this (retries, backoff); works now if RESEND_API_KEY is set.
-  async scheduled(event, env) {
-    if (!env.RESEND_API_KEY) return;
-    const { results } = await env.DB.prepare('SELECT * FROM email_outbox WHERE sent_at IS NULL AND attempts<5 ORDER BY id LIMIT 20').all();
-    for (const m of results) {
-      const r = await fetch('https://api.resend.com/emails', {
-        method: 'POST', headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, 'content-type': 'application/json' },
-        body: JSON.stringify({ from: env.MAIL_FROM || 'Bonas Hub <onboarding@resend.dev>', to: m.to_email, subject: m.subject, text: m.body }),
-      });
-      await env.DB.prepare(r.ok ? "UPDATE email_outbox SET sent_at=datetime('now') WHERE id=?" : 'UPDATE email_outbox SET attempts=attempts+1 WHERE id=?').bind(m.id).run();
-    }
-  },
+  }
 };

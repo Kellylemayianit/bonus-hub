@@ -1,15 +1,8 @@
-import { page, redirect, form, requireUser, queueEmail } from '../lib/http.js';
+import { page, redirect, form, requireUser } from '../lib/http.js';
 import { transition, STATUSES } from '../lib/state.js';
 import { adminQueue } from '../templates/admin.js';
 
 const NOTE_REQUIRED = ['reject', 'request_documents', 'suspend'];
-const MAIL = {
-  approve: ['Your Bonas Hub account is approved', 'Good news: your business is approved. Your profile and listings are now public.'],
-  reject: ['Update on your Bonas Hub application', 'We could not approve your application.'],
-  request_documents: ['Bonas Hub needs one more document', 'The admin asked for more documents.'],
-  suspend: ['Your Bonas Hub account is suspended', 'Your pages and listings are hidden while we review.'],
-  reinstate: ['Your Bonas Hub account is reinstated', 'Your account is active again.'],
-};
 
 // Cache purge hook: step 4 caches rendered public pages; approval changes must evict them at once.
 async function purgePublicPages(env, b) {
@@ -52,14 +45,12 @@ export const adminRoutes = [
     const can_sell = confirmCaps ? (f.can_sell ? 1 : 0) : b.can_sell, can_buy = confirmCaps ? (f.can_buy ? 1 : 0) : b.can_buy;
     if (to === 'approved' && !can_sell && !can_buy) return rerender('Confirm at least one capability: sell or buy.');
 
-    const [subject, text] = MAIL[f.action] || [];
     await env.DB.batch([
       env.DB.prepare(`UPDATE businesses SET status=?, can_sell=?, can_buy=?, review_note=?,
         approved_at=CASE WHEN ?='approved' AND approved_at IS NULL THEN datetime('now') ELSE approved_at END WHERE id=?`)
         .bind(to, can_sell, can_buy, note || null, to, b.id),
       env.DB.prepare('INSERT INTO admin_audit_log (admin_id,business_id,action,from_status,to_status,note) VALUES (?,?,?,?,?,?)')
-        .bind(r.user.id, b.id, f.action, b.status, to, note || null),
-      ...(subject ? [queueEmail(env, b.owner_email, subject, `${text}${note ? `\n\nNote from the admin: ${note}` : ''}`)] : []),
+        .bind(r.user.id, b.id, f.action, b.status, to, note || null)
     ]);
     await purgePublicPages(env, b);
     return redirect(`/admin?status=${f.back || 'pending'}`);

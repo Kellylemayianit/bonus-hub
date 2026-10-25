@@ -10,13 +10,12 @@ skeleton, auth, onboarding, approval state machine, admin approval queue.
     echo 'ADMIN_EMAILS = "you@example.com"' >> wrangler.toml   # under [vars]
     npm run dev
 
-Register with the admin email to get /admin. In dev, verification links print to the console
+Register with the admin email to get /admin. In dev, the verification code shows on screen
 and Turnstile/Supabase are skipped when their secrets are not set.
 
 ## Secrets (production)
     wrangler secret put TURNSTILE_SECRET        # and TURNSTILE_SITE_KEY as a var
     wrangler secret put SUPABASE_SERVICE_KEY    # plus SUPABASE_URL var; private bucket "verification-docs"
-    wrangler secret put RESEND_API_KEY
 
 ## Layout
 - migrations/0001_init.sql  full data model (FTS5 on products, indexes)
